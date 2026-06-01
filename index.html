@@ -97,7 +97,7 @@
     function renderLabel(doc, d, palletNum, total, primary, gray, printDate) {
       const PAGE_W = 4, M = 0.15, CONTENT_W = PAGE_W - 2 * M, PAGE_H = 6;
       const logoH = 0.55, logoW = logoH * (2575 / 1190);
-      try { doc.addImage(LOGO, 'PNG', M, M, logoW, logoH); } catch (e) {}
+      try { doc.addImage(LOGO, 'PNG', M, M, logoW, logoH, 'flirtlogo', 'FAST'); } catch (e) {}
       doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(0, 0, 0);
       doc.text('PALETTE ' + palletNum + ' / ' + total, PAGE_W - M, M + 0.42, { align: 'right' });
       doc.setDrawColor(primary[0], primary[1], primary[2]); doc.setLineWidth(0.03);
