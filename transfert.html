@@ -50,7 +50,10 @@
     .label .block-name { font-size: 19pt; font-weight: 700; line-height: 1.15; }
     .label .block-address { font-size: 12pt; line-height: 1.25; white-space: pre-line; color: #222; margin-top: 2px; }
     .label .block-product { font-size: 13pt; line-height: 1.3; }
-    .label .block-qty { font-size: 13pt; font-weight: 700; margin-top: 2px; }
+    .label .prod-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13pt; line-height: 1.25; margin-bottom: 2px; }
+    .label .prod-name { font-weight: 600; }
+    .label .prod-exp { font-size: 10.5pt; font-weight: 700; color: #444; white-space: nowrap; }
+    .label .block-qty { font-size: 12pt; font-weight: 700; margin-top: 4px; }
 
     .label .skid-block {
       border: 2px solid #29382B; padding: 10px 8px; text-align: center; margin-top: auto; margin-bottom: 8px;
@@ -103,14 +106,36 @@
       'Satau': '71 Brunswick Blvd\nDollard-Des-Ormeaux, QC H9B 2N4',
     };
 
-    // The transfer button passes {Inventory Lots} (lot record names) as the product,
-    // e.g. "Lime and mint Can 355ml Dry (495)". Strip the trailing " (lot#)" so the
-    // label shows a clean product name, and dedupe when several lots share a name.
-    function cleanProduct(s) {
-      const parts = String(s || '').split(',')
-        .map(function (x) { return x.replace(/\s*\(\d+\)\s*$/, '').trim(); })
-        .filter(Boolean);
-      return parts.filter(function (v, i) { return parts.indexOf(v) === i; }).join(', ');
+    // A skid can hold several lots/products, each with its own expiry. The button passes
+    // two parallel ", "-joined lists from the linked Inventory Lots (same order, same length):
+    //   product = {Inventory Lots}                      -> "Lime ... Dry (898), Cherry ... (845)"
+    //   expiry  = {Expiry Date (from Inventory Lots)}   -> "2027-05-07, 2027-06-01"
+    // We pair them by position, strip each lot's trailing " (lot#)", and dedupe identical lines.
+    function splitList(s) {
+      return String(s || '').split(/\s*,\s*/).map(function (x) { return x.trim(); }).filter(Boolean);
+    }
+    function cleanName(s) {
+      return String(s || '').replace(/\s*\(\d+\)\s*$/, '').trim();
+    }
+    function cleanDate(s) {
+      const m = String(s || '').match(/\d{4}-\d{2}-\d{2}/);
+      return m ? m[0] : String(s || '').trim();
+    }
+    function buildLots(productParam, expiryParam) {
+      const names = splitList(productParam);
+      const exps = splitList(expiryParam);
+      const seen = {};
+      const lots = [];
+      names.forEach(function (nm, i) {
+        const name = cleanName(nm);
+        if (!name) return;
+        const expiry = cleanDate(exps[i] || '');
+        const key = name + '|' + expiry;
+        if (seen[key]) return;
+        seen[key] = true;
+        lots.push({ name: name, expiry: expiry });
+      });
+      return lots;
     }
 
     function addrFor(name, override) {
@@ -127,7 +152,7 @@
         toWarehouse: toWarehouse,
         fromAddress: addrFor(fromWarehouse, (p.get('from_addr') || '').trim()),
         toAddress: addrFor(toWarehouse, (p.get('to_addr') || '').trim()),
-        product: cleanProduct(p.get('product') || ''),
+        lots: buildLots(p.get('product') || '', p.get('expiry') || ''),
         qty: (p.get('qty') || '').trim(),
         skidLabel: (p.get('skid') || '').trim(),
         skidNum: (p.get('skidnum') || '').trim(),
@@ -147,9 +172,18 @@
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function productRows(lots) {
+      if (!lots || !lots.length) return '<div class="block-product">—</div>';
+      return lots.map(function (lot) {
+        const exp = lot.expiry ? '<span class="prod-exp">exp ' + esc(lot.expiry) + '</span>' : '';
+        return '<div class="prod-row"><span class="prod-name">' + esc(lot.name) + '</span>' + exp + '</div>';
+      }).join('');
+    }
+
     function labelHtml(d, printDate) {
       const header = d.skidNum ? esc(d.skidNum.toUpperCase()) : 'SKID';
-      const qtyLine = d.qty ? ('Qté : ' + esc(d.qty) + ' caisses') : '';
+      const prodLabel = (d.lots && d.lots.length > 1) ? 'PRODUITS' : 'PRODUIT';
+      const qtyLine = d.qty ? ('Qté totale : ' + esc(d.qty) + ' caisses') : '';
       return '' +
         '<div class="label">' +
           '<div class="pallet-header">' +
@@ -167,8 +201,8 @@
             (d.toAddress ? '<div class="block-address">' + esc(d.toAddress) + '</div>' : '') +
           '</div>' +
           '<div class="block">' +
-            '<div class="block-label">PRODUIT</div>' +
-            '<div class="block-product">' + esc(d.product || '—') + '</div>' +
+            '<div class="block-label">' + prodLabel + '</div>' +
+            productRows(d.lots) +
             (qtyLine ? '<div class="block-qty">' + qtyLine + '</div>' : '') +
           '</div>' +
           '<div class="skid-block">' +
