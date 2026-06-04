@@ -100,7 +100,18 @@
       'Alliance Étiquettes | Emballages': '114 de Normandie\nRepentigny, QC J6A 6B9',
       'Darwynn Whitby': 'Whitby, ON (WHB / WS02004)',
       'Darwynn VSL': 'Lachine, QC (MTL / WH02003)',
+      'Satau': '71 Brunswick Blvd\nDollard-Des-Ormeaux, QC H9B 2N4',
     };
+
+    // The transfer button passes {Inventory Lots} (lot record names) as the product,
+    // e.g. "Lime and mint Can 355ml Dry (495)". Strip the trailing " (lot#)" so the
+    // label shows a clean product name, and dedupe when several lots share a name.
+    function cleanProduct(s) {
+      const parts = String(s || '').split(',')
+        .map(function (x) { return x.replace(/\s*\(\d+\)\s*$/, '').trim(); })
+        .filter(Boolean);
+      return parts.filter(function (v, i) { return parts.indexOf(v) === i; }).join(', ');
+    }
 
     function addrFor(name, override) {
       if (override) return override;
@@ -116,7 +127,7 @@
         toWarehouse: toWarehouse,
         fromAddress: addrFor(fromWarehouse, (p.get('from_addr') || '').trim()),
         toAddress: addrFor(toWarehouse, (p.get('to_addr') || '').trim()),
-        product: (p.get('product') || '').trim(),
+        product: cleanProduct(p.get('product') || ''),
         qty: (p.get('qty') || '').trim(),
         skidLabel: (p.get('skid') || '').trim(),
         skidNum: (p.get('skidnum') || '').trim(),
